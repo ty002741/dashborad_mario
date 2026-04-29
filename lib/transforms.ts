@@ -1,4 +1,91 @@
-import { IntervalsActivity } from "./intervals";
+import { IntervalsActivity, WellnessEntry } from "./intervals";
+
+// ── Wellness 型別 ──────────────────────────────────
+export interface FitnessFatiguePoint {
+  date: string;
+  ctl: number;
+  atl: number;
+  tsb: number;
+}
+
+export interface HrvSleepPoint {
+  date: string;
+  hrv: number | null;
+  sleepScore: number | null;
+  sleepHrs: number | null;
+}
+
+export interface TodayWellness {
+  ctl: number | null;
+  atl: number | null;
+  tsb: number | null;
+  restingHR: number | null;
+  hrv: number | null;
+  sleepScore: number | null;
+  sleepHrs: number | null;
+  weight: number | null;
+  steps: number | null;
+}
+
+export interface KarvonenZone {
+  name: string;
+  minHR: number;
+  maxHR: number;
+  color: string;
+  description: string;
+}
+
+// ── Wellness 轉換 ─────────────────────────────────
+export function getFitnessFatigueData(wellness: WellnessEntry[]): FitnessFatiguePoint[] {
+  return wellness
+    .filter(w => w.ctl !== null && w.atl !== null)
+    .map(w => ({
+      date: w.id,
+      ctl: Math.round((w.ctl ?? 0) * 10) / 10,
+      atl: Math.round((w.atl ?? 0) * 10) / 10,
+      tsb: Math.round(((w.ctl ?? 0) - (w.atl ?? 0)) * 10) / 10,
+    }));
+}
+
+export function getHrvSleepData(wellness: WellnessEntry[]): HrvSleepPoint[] {
+  return wellness
+    .filter(w => w.hrv !== null || w.sleepScore !== null)
+    .slice(-60)
+    .map(w => ({
+      date: w.id.slice(5), // MM-DD
+      hrv: w.hrv,
+      sleepScore: w.sleepScore,
+      sleepHrs: w.sleepSecs ? Math.round((w.sleepSecs / 3600) * 10) / 10 : null,
+    }));
+}
+
+export function getTodayWellness(wellness: WellnessEntry[]): TodayWellness {
+  const latest = [...wellness].reverse().find(w => w.ctl !== null) ?? wellness[wellness.length - 1];
+  return {
+    ctl: latest?.ctl ? Math.round(latest.ctl * 10) / 10 : null,
+    atl: latest?.atl ? Math.round(latest.atl * 10) / 10 : null,
+    tsb: latest?.ctl && latest?.atl ? Math.round((latest.ctl - latest.atl) * 10) / 10 : null,
+    restingHR: latest?.restingHR ?? null,
+    hrv: latest?.hrv ?? null,
+    sleepScore: latest?.sleepScore ?? null,
+    sleepHrs: latest?.sleepSecs ? Math.round((latest.sleepSecs / 3600) * 10) / 10 : null,
+    weight: latest?.weight ?? null,
+    steps: latest?.steps ?? null,
+  };
+}
+
+// ── Karvonen 心率區間（科學版） ──────────────────────
+export function computeKarvonenZones(restHR: number, maxHR: number): KarvonenZone[] {
+  // Target HR = (maxHR - restHR) × intensity% + restHR
+  const hrr = (pct: number) => Math.round((maxHR - restHR) * pct + restHR);
+  return [
+    { name: "Z1 恢復", minHR: hrr(0.50), maxHR: hrr(0.60), color: "#6b7280", description: "主動恢復，促進血液循環" },
+    { name: "Z2 有氧", minHR: hrr(0.60), maxHR: hrr(0.70), color: "#3b82f6", description: "建立有氧基礎，80% 訓練應在此區" },
+    { name: "Z3 節奏", minHR: hrr(0.70), maxHR: hrr(0.80), color: "#22c55e", description: "馬拉松配速，提升乳酸緩衝能力" },
+    { name: "Z4 閾值", minHR: hrr(0.80), maxHR: hrr(0.90), color: "#f97316", description: "乳酸閾值訓練，提升無氧能力" },
+    { name: "Z5 無氧", minHR: hrr(0.90), maxHR: maxHR, color: "#ef4444", description: "VO₂max 區間，每週最多一次" },
+  ];
+}
 
 // ── 型別 ───────────────────────────────────────────
 export interface WeeklyData {
