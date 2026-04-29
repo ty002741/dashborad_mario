@@ -42,10 +42,10 @@ export interface AthleteProfile {
   icu_resting_hr: number | null;
 }
 
-async function apiFetch<T>(path: string, revalidate = 3600): Promise<T> {
+async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { Authorization: getAuth(), "Content-Type": "application/json" },
-    next: { revalidate },
+    next: { revalidate: 900 },
   });
   if (!res.ok) throw new Error(`Intervals.icu API 錯誤：${res.status}`);
   return res.json();
