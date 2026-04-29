@@ -8,6 +8,7 @@ import FitnessFatigueChart from "@/components/charts/FitnessFatigueChart";
 import ActivityHeatmap from "@/components/dashboard/ActivityHeatmap";
 import PersonalRecords from "@/components/dashboard/PersonalRecords";
 import WellnessPanel from "@/components/dashboard/WellnessPanel";
+import DailySummaryCard from "@/components/dashboard/DailySummaryCard";
 import { fetchActivities, fetchWellness } from "@/lib/intervals";
 import {
   getWeeklyChartData, getHrPaceData, getRecentRows,
@@ -66,6 +67,9 @@ export default async function DashboardPage() {
           過去一年 · {activities.length} 筆活動 · Karvonen 心率區間（靜止心率 {restHR} bpm）
         </p>
       </div>
+
+      {/* AI 每日訓練建議 */}
+      <DailySummaryCard wellness={todayWellness} recentActivities={recentRows.slice(0, 3)} />
 
       {/* 今日健康面板 */}
       <WellnessPanel w={todayWellness} />
