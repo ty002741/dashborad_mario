@@ -60,17 +60,25 @@ export function getHrvSleepData(wellness: WellnessEntry[]): HrvSleepPoint[] {
 }
 
 export function getTodayWellness(wellness: WellnessEntry[]): TodayWellness {
-  const latest = [...wellness].reverse().find(w => w.ctl !== null) ?? wellness[wellness.length - 1];
+  const rev = [...wellness].reverse();
+  // CTL/ATL 用最新有值的一天
+  const forLoad = rev.find(w => w.ctl !== null) ?? wellness[wellness.length - 1];
+  // 健康指標各自往回找最近有資料的一天（今天 Garmin 還沒同步時仍能顯示昨天的值）
+  const find = <K extends keyof WellnessEntry>(key: K) => rev.find(w => w[key] !== null)?.[key] ?? null;
+
   return {
-    ctl: latest?.ctl ? Math.round(latest.ctl * 10) / 10 : null,
-    atl: latest?.atl ? Math.round(latest.atl * 10) / 10 : null,
-    tsb: latest?.ctl && latest?.atl ? Math.round((latest.ctl - latest.atl) * 10) / 10 : null,
-    restingHR: latest?.restingHR ?? null,
-    hrv: latest?.hrv ?? null,
-    sleepScore: latest?.sleepScore ?? null,
-    sleepHrs: latest?.sleepSecs ? Math.round((latest.sleepSecs / 3600) * 10) / 10 : null,
-    weight: latest?.weight ?? null,
-    steps: latest?.steps ?? null,
+    ctl: forLoad?.ctl ? Math.round(forLoad.ctl * 10) / 10 : null,
+    atl: forLoad?.atl ? Math.round(forLoad.atl * 10) / 10 : null,
+    tsb: forLoad?.ctl && forLoad?.atl ? Math.round((forLoad.ctl - forLoad.atl) * 10) / 10 : null,
+    restingHR: find("restingHR") as number | null,
+    hrv: find("hrv") as number | null,
+    sleepScore: find("sleepScore") as number | null,
+    sleepHrs: (() => {
+      const s = find("sleepSecs") as number | null;
+      return s ? Math.round((s / 3600) * 10) / 10 : null;
+    })(),
+    weight: find("weight") as number | null,
+    steps: find("steps") as number | null,
   };
 }
 
