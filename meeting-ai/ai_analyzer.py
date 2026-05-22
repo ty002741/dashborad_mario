@@ -1,54 +1,107 @@
 """
 AI 分析模組
-使用 Anthropic Claude API 分析逐字稿，回傳摘要、待問問題、行動項目。
+透過 `claude -p` CLI（pipe 模式）分析逐字稿，不需要 Anthropic API Key。
+前提：已安裝 Claude Code CLI 且已登入（claude.ai 帳號）。
 """
 
 import json
 import os
+import subprocess
+import sys
 import time
 from datetime import datetime
-from typing import Optional
 
-import anthropic
-from dotenv import load_dotenv
+# 針對 IT/MES/製造業會議優化的分析指令
+_ANALYZE_PROMPT_TEMPLATE = """你是一位專業的 IT 與製造業會議助理，專注於 MES（製造執行系統）、ERP、品質管理、供應鏈等領域。
 
-load_dotenv()
+請根據以下會議逐字稿，以繁體中文完成分析，並**只輸出 JSON**，不要輸出其他文字。
 
-# 系統提示詞（針對 IT/MES/製造業會議優化）
-_SYSTEM_PROMPT = """你是一位專業的 IT 與製造業會議助理，專注於 MES（製造執行系統）、ERP、品質管理、供應鏈等領域。
-
-請根據提供的會議逐字稿，以繁體中文完成以下分析：
-
-1. **重點摘要**：條列式列出最重要的 3-5 個討論重點
-2. **待釐清問題**：列出目前仍未解決或需要跟進的問題
-3. **行動項目**：明確的待辦事項，若有提到負責人請一併列出
-
-請以 JSON 格式回應，格式如下：
-{
+輸出格式：
+{{
   "summary": ["重點1", "重點2", "重點3"],
   "pending_questions": ["待釐清問題1", "待釐清問題2"],
   "action_items": ["行動項目1（負責人：XXX）", "行動項目2"],
-  "timestamp": "HH:MM:SS"
-}
+  "timestamp": "{timestamp}"
+}}
 
-注意事項：
-- 若逐字稿為空或內容不足，在對應欄位回傳空陣列
-- 保持客觀中立，忠實反映會議內容
-- 技術術語保留原文（如 MES、ERP、API 等）
-- timestamp 填入當前分析時間"""
+規則：
+- 若內容不足，對應欄位回傳空陣列 []
+- 保持客觀，忠實反映會議內容
+- 技術術語保留原文（MES、ERP、API 等）
+- 只輸出 JSON，不要加說明文字
 
-_client: Optional[anthropic.Anthropic] = None
+逐字稿：
+{transcript}"""
+
+_MINUTES_PROMPT_TEMPLATE = """你是專業的會議記錄員，請根據以下逐字稿產生詳細的 Markdown 格式會議紀錄（繁體中文）。
+
+會議時間：{start_time} ~ {end_time}
+總時長：{duration}
+
+必須包含章節：
+1. 會議基本資訊
+2. 完整逐字稿（原文保留）
+3. 重點摘要（條列）
+4. 決議事項
+5. 行動項目（含負責人，若有提及）
+
+逐字稿：
+{transcript}"""
 
 
-def _get_client() -> anthropic.Anthropic:
-    """取得（或建立）Anthropic 客戶端。"""
-    global _client
-    if _client is None:
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key or api_key == "your_key_here":
-            raise ValueError("請在 .env 檔案中設定有效的 ANTHROPIC_API_KEY")
-        _client = anthropic.Anthropic(api_key=api_key)
-    return _client
+def _run_claude(prompt: str, timeout: int = 120, max_retries: int = 3) -> str:
+    """
+    呼叫 `claude -p` 並回傳輸出文字。
+    Windows 上 claude CLI 通常位於 PATH 中（Claude Code 安裝後自動加入）。
+    """
+    # Windows 上可能需要 claude.cmd 或 claude.exe
+    cmd = ["claude", "-p", prompt]
+
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                encoding="utf-8",
+            )
+            if result.returncode != 0:
+                err = result.stderr.strip() or f"exit code {result.returncode}"
+                raise RuntimeError(f"claude -p 回傳錯誤：{err}")
+            return result.stdout.strip()
+
+        except FileNotFoundError:
+            raise RuntimeError(
+                "找不到 claude 指令。請確認 Claude Code CLI 已安裝並加入 PATH。\n"
+                "安裝說明：https://claude.ai/code"
+            )
+        except subprocess.TimeoutExpired:
+            wait = 2 ** attempt
+            print(f"[AI 分析] 逾時，{wait} 秒後重試（第 {attempt}/{max_retries} 次）")
+            time.sleep(wait)
+            last_error = "claude -p 執行逾時"
+        except RuntimeError as e:
+            wait = 2 ** attempt
+            print(f"[AI 分析錯誤] {e}，{wait} 秒後重試（第 {attempt}/{max_retries} 次）")
+            time.sleep(wait)
+            last_error = str(e)
+        except Exception as e:
+            print(f"[AI 分析錯誤] 未預期錯誤：{e}")
+            last_error = str(e)
+            break
+
+    raise RuntimeError(last_error or "claude -p 呼叫失敗")
+
+
+def _extract_json(raw: str) -> dict:
+    """從輸出中提取 JSON 物件（Claude 有時會加上說明文字）。"""
+    start = raw.find("{")
+    end = raw.rfind("}") + 1
+    if start >= 0 and end > start:
+        return json.loads(raw[start:end])
+    raise json.JSONDecodeError("找不到 JSON 物件", raw, 0)
 
 
 def analyze_transcript(transcript_entries: list[dict], max_retries: int = 3) -> dict:
@@ -57,89 +110,47 @@ def analyze_transcript(transcript_entries: list[dict], max_retries: int = 3) -> 
 
     Args:
         transcript_entries: 逐字稿條目列表，每項含 timestamp 與 text
-        max_retries: API 失敗最多重試次數
+        max_retries: 失敗最多重試次數
 
     Returns:
         含 summary / pending_questions / action_items / timestamp 的 dict
     """
     now = datetime.now().strftime("%H:%M:%S")
 
-    # 組合逐字稿文字
     if not transcript_entries:
+        return {"summary": [], "pending_questions": [], "action_items": [], "timestamp": now}
+
+    transcript_text = "\n".join(
+        f"[{e['timestamp']}] {e['text']}" for e in transcript_entries
+    )
+    prompt = _ANALYZE_PROMPT_TEMPLATE.format(timestamp=now, transcript=transcript_text)
+
+    try:
+        raw = _run_claude(prompt, timeout=90, max_retries=max_retries)
+        result = _extract_json(raw)
+        result.setdefault("summary", [])
+        result.setdefault("pending_questions", [])
+        result.setdefault("action_items", [])
+        result["timestamp"] = now
+        return result
+    except json.JSONDecodeError as e:
+        print(f"[AI 分析錯誤] JSON 解析失敗：{e}")
         return {
-            "summary": [],
+            "summary": ["AI 回應格式錯誤，請重試"],
             "pending_questions": [],
             "action_items": [],
             "timestamp": now,
+            "error": str(e),
         }
-
-    transcript_text = "\n".join(
-        f"[{entry['timestamp']}] {entry['text']}"
-        for entry in transcript_entries
-    )
-
-    user_message = f"以下是最新的會議逐字稿，請進行分析：\n\n{transcript_text}"
-
-    # 重試機制
-    last_error = None
-    for attempt in range(1, max_retries + 1):
-        try:
-            client = _get_client()
-            message = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=1024,
-                system=_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_message}],
-            )
-
-            raw = message.content[0].text.strip()
-
-            # 嘗試從回應中提取 JSON
-            json_start = raw.find("{")
-            json_end = raw.rfind("}") + 1
-            if json_start >= 0 and json_end > json_start:
-                raw = raw[json_start:json_end]
-
-            result = json.loads(raw)
-
-            # 確保所有欄位存在
-            result.setdefault("summary", [])
-            result.setdefault("pending_questions", [])
-            result.setdefault("action_items", [])
-            result["timestamp"] = now
-
-            return result
-
-        except anthropic.RateLimitError:
-            wait = 2 ** attempt
-            print(f"[AI 分析] Rate limit，{wait} 秒後重試（第 {attempt}/{max_retries} 次）")
-            time.sleep(wait)
-            last_error = "超過 API 速率限制"
-
-        except anthropic.APIError as e:
-            wait = 2 ** attempt
-            print(f"[AI 分析錯誤] API 錯誤：{e}，{wait} 秒後重試（第 {attempt}/{max_retries} 次）")
-            time.sleep(wait)
-            last_error = str(e)
-
-        except json.JSONDecodeError as e:
-            print(f"[AI 分析錯誤] JSON 解析失敗：{e}")
-            last_error = f"回應格式錯誤：{e}"
-            break  # JSON 錯誤不重試
-
-        except Exception as e:
-            print(f"[AI 分析錯誤] 未預期錯誤：{e}")
-            last_error = str(e)
-            break
-
-    # 所有重試失敗
-    return {
-        "summary": [f"分析失敗：{last_error}"],
-        "pending_questions": [],
-        "action_items": [],
-        "timestamp": now,
-        "error": last_error,
-    }
+    except Exception as e:
+        print(f"[AI 分析錯誤] {e}")
+        return {
+            "summary": [f"分析失敗：{e}"],
+            "pending_questions": [],
+            "action_items": [],
+            "timestamp": now,
+            "error": str(e),
+        }
 
 
 def generate_full_minutes(transcript_entries: list[dict], duration_seconds: int) -> str:
@@ -157,58 +168,35 @@ def generate_full_minutes(transcript_entries: list[dict], duration_seconds: int)
         return "# 會議紀錄\n\n（無逐字稿內容）"
 
     transcript_text = "\n".join(
-        f"[{entry['timestamp']}] {entry['text']}"
-        for entry in transcript_entries
+        f"[{e['timestamp']}] {e['text']}" for e in transcript_entries
+    )
+    h, rem = divmod(duration_seconds, 3600)
+    m, s = divmod(rem, 60)
+    duration_str = f"{h:02d}:{m:02d}:{s:02d}"
+    start_time = transcript_entries[0]["timestamp"]
+    end_time = transcript_entries[-1]["timestamp"]
+
+    prompt = _MINUTES_PROMPT_TEMPLATE.format(
+        start_time=start_time,
+        end_time=end_time,
+        duration=duration_str,
+        transcript=transcript_text,
     )
 
-    hours, remainder = divmod(duration_seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-    start_time = transcript_entries[0]["timestamp"] if transcript_entries else "N/A"
-    end_time = transcript_entries[-1]["timestamp"] if transcript_entries else "N/A"
-
-    system_prompt = """你是專業的會議記錄員。請根據完整逐字稿產生詳細的 Markdown 格式會議紀錄，以繁體中文撰寫。
-
-會議紀錄必須包含以下章節：
-1. 會議基本資訊（時間、時長）
-2. 完整逐字稿（原文保留）
-3. 重點摘要（條列式）
-4. 決議事項
-5. 行動項目（含負責人，若逐字稿中有提及）
-
-格式要求：使用標準 Markdown，標題用 #/##/###，清單用 -"""
-
-    user_message = f"""請根據以下資訊產生完整的會議紀錄：
-
-**會議時間：** {start_time} ~ {end_time}
-**總時長：** {duration_str}
-
-**完整逐字稿：**
-{transcript_text}"""
-
     try:
-        client = _get_client()
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4096,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
-        )
-        return message.content[0].text
+        return _run_claude(prompt, timeout=180, max_retries=2)
     except Exception as e:
         print(f"[會議紀錄錯誤] {e}")
-        # 降級：用簡單格式輸出
-        lines = [
-            f"# 會議紀錄",
-            f"",
+        return "\n".join([
+            "# 會議紀錄",
+            "",
             f"**會議時間：** {start_time} ~ {end_time}",
             f"**總時長：** {duration_str}",
-            f"",
-            f"## 完整逐字稿",
-            f"",
+            "",
+            "## 完整逐字稿",
+            "",
             transcript_text,
-            f"",
-            f"---",
+            "",
+            "---",
             f"*AI 摘要產生失敗：{e}*",
-        ]
-        return "\n".join(lines)
+        ])

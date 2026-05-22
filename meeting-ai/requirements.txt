@@ -8,9 +8,6 @@ numpy==1.26.4
 # 語音轉文字（faster-whisper 使用 CTranslate2 加速）
 faster-whisper==1.0.3
 
-# AI 分析
-anthropic==0.40.0
-
 # 後端框架
 flask==3.0.3
 flask-socketio==5.3.6
