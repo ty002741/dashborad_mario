@@ -27,6 +27,7 @@ _audio_queue: queue.Queue = queue.Queue()
 
 # 狀態旗標
 _is_recording = False
+_is_paused = False
 _start_time: Optional[float] = None
 
 
@@ -66,10 +67,11 @@ def select_device_interactive() -> int:
 
 
 def _audio_callback(indata: np.ndarray, frames: int, time_info, status):
-    """sounddevice 音訊回呼，將原始音訊放入佇列。"""
+    """sounddevice 音訊回呼，將原始音訊放入佇列；暫停時直接丟棄。"""
     if status:
         print(f"[音訊警告] {status}")
-    # 複製一份避免緩衝區被覆寫
+    if _is_paused:
+        return
     _audio_queue.put(indata.copy())
 
 
@@ -87,6 +89,17 @@ def _transcription_worker(
     accumulated = np.array([], dtype=np.float32)
 
     while _is_recording or not _audio_queue.empty():
+        # 暫停時清空累積音訊與佇列，避免恢復後混入暫停前的聲音
+        if _is_paused:
+            accumulated = np.array([], dtype=np.float32)
+            while not _audio_queue.empty():
+                try:
+                    _audio_queue.get_nowait()
+                except queue.Empty:
+                    break
+            time.sleep(0.1)
+            continue
+
         try:
             chunk = _audio_queue.get(timeout=1.0)
             # 轉為單聲道 float32
@@ -208,6 +221,24 @@ def stop_capture():
     """停止音訊截取。"""
     global _is_recording
     _is_recording = False
+
+
+def pause_capture():
+    """暫停音訊截取（保留錄音狀態，不計入時長）。"""
+    global _is_paused
+    _is_paused = True
+    print("[錄音] 已暫停")
+
+
+def resume_capture():
+    """繼續音訊截取。"""
+    global _is_paused
+    _is_paused = False
+    print("[錄音] 已繼續")
+
+
+def is_paused() -> bool:
+    return _is_paused
 
 
 def get_recording_duration() -> int:

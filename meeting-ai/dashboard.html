@@ -6,7 +6,6 @@
   <title>會議 AI 助理 · Dashboard</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
   <style>
-    /* ── 基礎重設 ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -23,345 +22,216 @@
       --red-dim:     #7f1d1d20;
       --purple:      #a855f7;
       --purple-dim:  #4c1d9520;
+      --amber:       #f59e0b;
       --accent:      #3b82f6;
       --accent-dim:  #1e3a5f;
-      --status-ok:   #22c55e;
-      --status-idle: #6b7280;
       --radius:      8px;
     }
 
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      font-size: 14px;
-      line-height: 1.6;
-    }
+    html, body { height: 100%; background: var(--bg); color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }
 
-    /* ── 整體佈局 ── */
-    .app {
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      height: 100vh;
-      overflow: hidden;
-    }
+    .app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; overflow: hidden; }
 
-    /* ── 頂部標頭 ── */
+    /* ── Header ── */
     header {
       background: var(--bg-header);
       border-bottom: 1px solid var(--border);
-      padding: 12px 20px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
+      padding: 10px 20px;
+      display: flex; align-items: center; gap: 10px;
     }
-
-    header h1 {
-      font-size: 16px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      white-space: nowrap;
-    }
-
+    header h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
     header h1 span { color: var(--accent); }
-
     .header-spacer { flex: 1; }
 
+    /* ── Buttons ── */
     .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
-      border-radius: var(--radius);
-      border: 1px solid transparent;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.1s;
-      white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 13px; border-radius: var(--radius); border: 1px solid transparent;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: opacity .15s, transform .1s; white-space: nowrap;
     }
-    .btn:active { transform: scale(0.97); }
-    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-
-    .btn-primary {
-      background: var(--accent);
-      color: #fff;
-    }
-    .btn-primary:hover:not(:disabled) { opacity: 0.85; }
-
-    .btn-outline {
-      background: transparent;
-      border-color: var(--border);
-      color: var(--text);
-    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { opacity: .85; }
+    .btn-outline { background: transparent; border-color: var(--border); color: var(--text); }
     .btn-outline:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-
-    .btn-ghost {
-      background: transparent;
-      color: var(--text-muted);
-    }
+    .btn-ghost { background: transparent; color: var(--text-muted); border-color: transparent; }
     .btn-ghost:hover { color: var(--text); }
+    .btn-amber { background: transparent; border-color: var(--amber); color: var(--amber); }
+    .btn-amber:hover:not(:disabled) { background: #f59e0b18; }
 
-    /* ── 主要雙欄 ── */
-    main {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0;
-      overflow: hidden;
-    }
+    /* ── Main panels ── */
+    main { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; }
 
-    .panel {
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      border-right: 1px solid var(--border);
-    }
+    .panel { display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
     .panel:last-child { border-right: none; }
 
     .panel-header {
-      padding: 10px 16px;
-      background: var(--bg-card);
+      padding: 8px 14px; background: var(--bg-card);
       border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
+      display: flex; align-items: center; gap: 7px; flex-shrink: 0;
     }
+    .panel-title { font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--text-muted); }
 
-    .panel-title {
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-muted);
-    }
-
-    .badge {
-      font-size: 11px;
-      padding: 1px 7px;
-      border-radius: 999px;
-      background: var(--accent-dim);
-      color: var(--accent);
-    }
+    .badge { font-size: 11px; padding: 1px 7px; border-radius: 999px;
+      background: var(--accent-dim); color: var(--accent); }
+    .badge.search-active { background: #f59e0b22; color: var(--amber); }
 
     .panel-spacer { flex: 1; }
 
-    .panel-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 12px 16px;
-      scroll-behavior: smooth;
+    /* ── Search bar ── */
+    .search-wrap { position: relative; display: flex; align-items: center; }
+    .search-input {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-size: 12px; padding: 4px 26px 4px 8px;
+      width: 150px; outline: none; transition: border-color .15s;
     }
-
-    /* ── 逐字稿條目 ── */
-    .transcript-entry {
-      display: flex;
-      gap: 10px;
-      padding: 6px 0;
-      border-bottom: 1px solid #1e1e1e;
-      animation: fadeIn 0.3s ease;
+    .search-input:focus { border-color: var(--accent); }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-clear {
+      position: absolute; right: 5px; background: none; border: none;
+      color: var(--text-muted); cursor: pointer; font-size: 11px; line-height: 1;
+      padding: 0 2px;
     }
+    .search-clear:hover { color: var(--text); }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .ts-time {
-      font-size: 11px;
-      color: var(--text-ts);
-      font-variant-numeric: tabular-nums;
-      white-space: nowrap;
-      margin-top: 2px;
-      font-family: 'Consolas', monospace;
-    }
-
-    .ts-text {
-      color: var(--text);
-      flex: 1;
-    }
-
-    .ts-lang {
-      font-size: 10px;
-      color: var(--text-muted);
-      align-self: flex-start;
-      margin-top: 3px;
-    }
-
-    /* ── AI 分析面板 ── */
-    .analysis-section {
-      margin-bottom: 16px;
-    }
-
-    .section-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      margin-bottom: 8px;
-      display: flex;
+    /* ── History tabs ── */
+    .history-tabs {
+      display: none; /* shown via JS when history exists */
+      overflow-x: auto; gap: 4px;
+      padding: 6px 14px; background: var(--bg-card);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
       align-items: center;
-      gap: 6px;
     }
-
-    .section-label::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
+    .history-tabs::-webkit-scrollbar { height: 3px; }
+    .history-tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .tab-label { font-size: 10px; color: var(--text-muted); white-space: nowrap; margin-right: 2px; }
+    .tab-btn {
+      flex-shrink: 0; padding: 3px 10px;
+      border-radius: 4px; border: 1px solid var(--border);
+      background: transparent; color: var(--text-muted);
+      font-size: 11px; cursor: pointer;
+      font-family: 'Consolas', monospace; transition: all .15s;
     }
+    .tab-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .tab-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
+    /* ── Panel body ── */
+    .panel-body { flex: 1; overflow-y: auto; padding: 10px 14px; scroll-behavior: smooth; }
+
+    /* ── Transcript entries ── */
+    .transcript-entry {
+      display: flex; gap: 9px; padding: 5px 0;
+      border-bottom: 1px solid #1e1e1e;
+      animation: fadeIn .25s ease;
+    }
+    .ts-time { font-size: 11px; color: var(--text-ts); white-space: nowrap;
+      margin-top: 2px; font-family: 'Consolas', monospace; font-variant-numeric: tabular-nums; }
+    .ts-text { color: var(--text); flex: 1; }
+    .ts-text mark { background: #fbbf24; color: #000; border-radius: 2px; padding: 0 2px; }
+    .ts-lang { font-size: 10px; color: var(--text-muted); align-self: flex-start; margin-top: 3px; }
+
+    /* ── AI analysis ── */
+    .analysis-section { margin-bottom: 14px; }
+    .section-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; margin-bottom: 7px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
     .label-summary  { color: var(--green); }
     .label-question { color: var(--red); }
     .label-action   { color: var(--purple); }
 
     .analysis-list { list-style: none; }
-
     .analysis-list li {
-      padding: 6px 10px;
-      border-radius: 5px;
-      margin-bottom: 4px;
-      display: flex;
-      gap: 8px;
-      font-size: 13px;
-      animation: fadeIn 0.3s ease;
+      padding: 5px 9px; border-radius: 5px; margin-bottom: 4px;
+      display: flex; gap: 7px; font-size: 13px; animation: fadeIn .25s ease;
     }
-
     .analysis-list li::before { content: '·'; flex-shrink: 0; }
-
-    .list-summary  { background: var(--green-dim); color: #86efac; }
-    .list-summary::before { color: var(--green); }
-
-    .list-question { background: var(--red-dim);   color: #fca5a5; }
+    .list-summary  { background: var(--green-dim);  color: #86efac; }
+    .list-summary::before  { color: var(--green); }
+    .list-question { background: var(--red-dim);    color: #fca5a5; }
     .list-question::before { color: var(--red); }
-
     .list-action   { background: var(--purple-dim); color: #d8b4fe; }
-    .list-action::before { color: var(--purple); }
+    .list-action::before   { color: var(--purple); }
 
-    .empty-hint {
-      color: var(--text-muted);
-      font-size: 12px;
-      font-style: italic;
-      padding: 4px 10px;
-    }
+    .empty-hint { color: var(--text-muted); font-size: 12px; font-style: italic; padding: 3px 9px; }
+    .analysis-ts { font-size: 11px; color: var(--text-muted); text-align: right; margin-top: 4px; }
 
-    .analysis-ts {
-      font-size: 11px;
-      color: var(--text-muted);
-      text-align: right;
-      margin-top: 4px;
-    }
-
-    /* ── 分析中 loading ── */
-    .analyzing-indicator {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      padding: 10px;
-      color: var(--accent);
-      font-size: 13px;
-    }
+    /* ── Spinner ── */
+    .analyzing-indicator { display: none; align-items: center; gap: 8px;
+      padding: 10px; color: var(--accent); font-size: 13px; }
     .analyzing-indicator.visible { display: flex; }
+    .spinner { width: 13px; height: 13px; border: 2px solid var(--accent-dim);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin .8s linear infinite; }
 
-    .spinner {
-      width: 14px; height: 14px;
-      border: 2px solid var(--accent-dim);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── 狀態列 ── */
+    /* ── Footer ── */
     footer {
-      background: var(--bg-header);
-      border-top: 1px solid var(--border);
-      padding: 6px 20px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      font-size: 12px;
-      color: var(--text-muted);
+      background: var(--bg-header); border-top: 1px solid var(--border);
+      padding: 5px 20px; display: flex; align-items: center; gap: 14px;
+      font-size: 12px; color: var(--text-muted);
     }
-
-    .status-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--status-idle);
-      flex-shrink: 0;
-    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%;
+      background: #6b7280; flex-shrink: 0; }
     .status-dot.recording {
-      background: var(--status-ok);
-      box-shadow: 0 0 6px var(--status-ok);
+      background: var(--green); box-shadow: 0 0 6px var(--green);
       animation: pulse 1.5s ease-in-out infinite;
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+    .status-dot.paused {
+      background: var(--amber); box-shadow: 0 0 6px var(--amber);
+      animation: pulse 1.5s ease-in-out infinite;
     }
-
     .status-text { color: var(--text); }
     .footer-spacer { flex: 1; }
+    .conn-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+    .conn-badge.connected    { color: var(--green); border-color: var(--green); }
+    .conn-badge.disconnected { color: var(--red);   border-color: var(--red); }
 
-    .conn-badge {
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-    }
-    .conn-badge.connected    { color: var(--green);  border-color: var(--green); }
-    .conn-badge.disconnected { color: var(--red);    border-color: var(--red); }
-
-    /* ── 捲動條美化 ── */
-    ::-webkit-scrollbar { width: 6px; }
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
 
-    /* ── Toast 通知 ── */
-    .toast-container {
-      position: fixed;
-      bottom: 48px;
-      right: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      z-index: 100;
-    }
-
-    .toast {
-      padding: 10px 16px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      font-size: 13px;
-      max-width: 320px;
-      animation: slideIn 0.2s ease;
-    }
+    /* ── Toast ── */
+    .toast-container { position: fixed; bottom: 46px; right: 18px;
+      display: flex; flex-direction: column; gap: 6px; z-index: 100; }
+    .toast { padding: 9px 14px; background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); font-size: 13px; max-width: 320px;
+      animation: slideIn .2s ease; }
     .toast.success { border-left: 3px solid var(--green); }
     .toast.error   { border-left: 3px solid var(--red); }
     .toast.info    { border-left: 3px solid var(--accent); }
 
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateX(20px); }
-      to   { opacity: 1; transform: translateX(0); }
-    }
+    /* ── Animations ── */
+    @keyframes fadeIn  { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+    @keyframes spin    { to { transform: rotate(360deg); } }
+    @keyframes pulse   { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
   </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- ── 頂部標頭 ── -->
+  <!-- ── Header ── -->
   <header>
     <h1>會議 <span>AI</span> 助理</h1>
     <div class="header-spacer"></div>
+    <!-- 暫停/繼續按鈕（錄音中才顯示） -->
+    <button class="btn btn-amber" id="btn-pause" style="display:none" onclick="togglePause()">
+      ⏸ 暫停
+    </button>
     <button class="btn btn-primary" id="btn-analyze" onclick="triggerAnalyze()">
       ⚡ 立即分析
     </button>
   </header>
 
-  <!-- ── 主要雙欄 ── -->
+  <!-- ── Main ── -->
   <main>
 
     <!-- 左欄：逐字稿 -->
@@ -370,7 +240,15 @@
         <span class="panel-title">即時逐字稿</span>
         <span class="badge" id="transcript-count">0 條</span>
         <div class="panel-spacer"></div>
-        <button class="btn btn-ghost" onclick="clearTranscript()" title="清除逐字稿">✕</button>
+        <!-- 關鍵字搜尋 -->
+        <div class="search-wrap">
+          <input class="search-input" id="search-input"
+            type="text" placeholder="搜尋逐字稿..."
+            oninput="handleSearch(this.value)" />
+          <button class="search-clear" id="search-clear"
+            style="display:none" onclick="clearSearch()">✕</button>
+        </div>
+        <button class="btn btn-ghost" onclick="clearTranscript()" title="清除逐字稿顯示">✕</button>
       </div>
       <div class="panel-body" id="transcript-body">
         <div class="empty-hint" id="transcript-empty">等待錄音開始...</div>
@@ -386,14 +264,18 @@
           📄 匯出會議紀錄
         </button>
       </div>
-      <div class="panel-body" id="analysis-body">
 
+      <!-- 分析歷史 tabs（有資料才出現） -->
+      <div class="history-tabs" id="history-tabs">
+        <span class="tab-label">歷史</span>
+      </div>
+
+      <div class="panel-body" id="analysis-body">
         <div class="analyzing-indicator" id="analyzing-indicator">
           <div class="spinner"></div>
           <span>AI 分析中...</span>
         </div>
 
-        <!-- 摘要 -->
         <div class="analysis-section">
           <div class="section-label label-summary">重點摘要</div>
           <ul class="analysis-list" id="summary-list">
@@ -401,7 +283,6 @@
           </ul>
         </div>
 
-        <!-- 待釐清問題 -->
         <div class="analysis-section">
           <div class="section-label label-question">待釐清問題</div>
           <ul class="analysis-list" id="questions-list">
@@ -409,7 +290,6 @@
           </ul>
         </div>
 
-        <!-- 行動項目 -->
         <div class="analysis-section">
           <div class="section-label label-action">行動項目</div>
           <ul class="analysis-list" id="actions-list">
@@ -423,7 +303,7 @@
 
   </main>
 
-  <!-- ── 狀態列 ── -->
+  <!-- ── Footer ── -->
   <footer>
     <div class="status-dot" id="status-dot"></div>
     <span class="status-text" id="status-text">未連線</span>
@@ -433,63 +313,148 @@
   </footer>
 
 </div>
-
-<!-- Toast 容器 -->
 <div class="toast-container" id="toast-container"></div>
 
 <script>
-  // ── Socket.IO 連線 ────────────────────────────────
+  // ── 全域狀態 ──────────────────────────────────────
   const socket = io({ transports: ['websocket', 'polling'] });
 
-  let transcriptCount = 0;
-  let isRecording = false;
-  let durationSeconds = 0;
-  let durationTimer = null;
+  let transcriptCount  = 0;
+  let isRecording      = false;
+  let isPaused         = false;
+  let durationSeconds  = 0;
+  let searchQuery      = '';
+  let analysisHistory  = [];   // 所有分析結果
+  let currentHistIdx   = -1;   // 目前顯示的索引
 
-  // 連線成功
+  // ── Socket 事件 ──────────────────────────────────
   socket.on('connect', () => {
-    document.getElementById('conn-badge').textContent = '● 已連線';
-    document.getElementById('conn-badge').className = 'conn-badge connected';
+    setBadgeConn(true);
     showToast('已連線至後端伺服器', 'success');
   });
 
-  // 連線中斷
   socket.on('disconnect', () => {
-    document.getElementById('conn-badge').textContent = '● 未連線';
-    document.getElementById('conn-badge').className = 'conn-badge disconnected';
+    setBadgeConn(false);
     document.getElementById('status-dot').className = 'status-dot';
     document.getElementById('status-text').textContent = '連線中斷';
     showToast('與後端連線中斷，嘗試重連...', 'error');
   });
 
-  // 收到新逐字稿
-  socket.on('new_transcript', (data) => {
-    appendTranscript(data);
-  });
+  socket.on('new_transcript', appendTranscript);
 
-  // 收到 AI 分析結果
   socket.on('ai_analysis', (data) => {
     setAnalyzing(false);
-    updateAnalysis(data);
+    // 連線補發歷史時，避免重複加入已有紀錄
+    const alreadyExists = analysisHistory.some(h => h.timestamp === data.timestamp);
+    if (!alreadyExists) {
+      analysisHistory.push(data);
+    }
+    currentHistIdx = analysisHistory.length - 1;
+    renderHistoryTabs();
+    renderAnalysis(data);
   });
 
-  // 錄音狀態更新
   socket.on('status_update', (data) => {
-    isRecording = data.is_recording;
+    isRecording     = data.is_recording;
+    isPaused        = data.is_paused || false;
     durationSeconds = data.duration_seconds || 0;
     updateStatusBar();
+    updatePauseButton();
   });
 
-  // 匯出完成
   socket.on('export_done', (data) => {
-    document.getElementById('btn-export').disabled = false;
-    document.getElementById('btn-export').textContent = '📄 匯出會議紀錄';
-    if (data.success) {
-      showToast(`✅ 會議紀錄已匯出：${data.filepath}`, 'success');
-    } else {
-      showToast(`❌ 匯出失敗：${data.error}`, 'error');
-    }
+    const btn = document.getElementById('btn-export');
+    btn.disabled = false;
+    btn.textContent = '📄 匯出會議紀錄';
+    showToast(data.success
+      ? `✅ 已匯出：${data.filepath}`
+      : `❌ 匯出失敗：${data.error}`,
+      data.success ? 'success' : 'error');
   });
+
+  // ── 1. 暫停 / 繼續 ─────────────────────────────
+  function togglePause() {
+    const endpoint = isPaused ? '/api/resume' : '/api/pause';
+    fetch(endpoint, { method: 'POST' })
+      .then(r => r.json())
+      .then(d => showToast(d.message, 'info'))
+      .catch(e => showToast(`錯誤：${e.message}`, 'error'));
+  }
+
+  function updatePauseButton() {
+    const btn = document.getElementById('btn-pause');
+    if (!isRecording) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
+    if (isPaused) {
+      btn.textContent = '▶ 繼續';
+      btn.className   = 'btn btn-primary';
+    } else {
+      btn.textContent = '⏸ 暫停';
+      btn.className   = 'btn btn-amber';
+    }
+  }
+
+  // ── 2. 分析歷史 tabs ───────────────────────────
+  function renderHistoryTabs() {
+    const container = document.getElementById('history-tabs');
+    if (analysisHistory.length === 0) { container.style.display = 'none'; return; }
+
+    container.style.display = 'flex';
+
+    // 保留 label，重建 tab 按鈕
+    container.innerHTML = '<span class="tab-label">歷史</span>';
+    analysisHistory.forEach((a, i) => {
+      const btn = document.createElement('button');
+      btn.className   = 'tab-btn' + (i === currentHistIdx ? ' active' : '');
+      btn.textContent = a.timestamp;
+      btn.onclick     = () => showHistoryAt(i);
+      container.appendChild(btn);
+    });
+
+    // 將 active tab 捲入視野
+    const active = container.querySelector('.tab-btn.active');
+    if (active) active.scrollIntoView({ block: 'nearest', inline: 'end' });
+  }
+
+  function showHistoryAt(index) {
+    currentHistIdx = index;
+    renderHistoryTabs();
+    renderAnalysis(analysisHistory[index]);
+  }
+
+  // ── 3. 逐字稿關鍵字搜尋 ───────────────────────
+  function handleSearch(value) {
+    searchQuery = value.trim();
+    document.getElementById('search-clear').style.display = searchQuery ? '' : 'none';
+    filterTranscripts();
+  }
+
+  function clearSearch() {
+    document.getElementById('search-input').value = '';
+    handleSearch('');
+  }
+
+  function filterTranscripts() {
+    const q = searchQuery.toLowerCase();
+    let matchCount = 0;
+    document.querySelectorAll('.transcript-entry').forEach(el => {
+      const raw = el.dataset.text || '';
+      const match = !q || raw.toLowerCase().includes(q);
+      el.style.display = match ? '' : 'none';
+      if (match) {
+        matchCount++;
+        el.querySelector('.ts-text').innerHTML = q ? highlightText(raw, q) : escHtml(raw);
+      }
+    });
+    updateTranscriptBadge(matchCount);
+  }
+
+  function highlightText(text, query) {
+    // 在已 HTML-escape 的文字上標記 query
+    const escaped = escHtml(text);
+    const safeQ   = escHtml(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return escaped.replace(new RegExp(safeQ, 'gi'), '<mark>$&</mark>');
+  }
 
   // ── 逐字稿操作 ──────────────────────────────────
   function appendTranscript(entry) {
@@ -497,80 +462,83 @@
     if (empty) empty.remove();
 
     const body = document.getElementById('transcript-body');
-    const div = document.createElement('div');
-    div.className = 'transcript-entry';
+    const div  = document.createElement('div');
+    div.className    = 'transcript-entry';
+    div.dataset.text = entry.text;
+
+    // 若目前有搜尋，新條目也要過濾
+    const q     = searchQuery.toLowerCase();
+    const match = !q || entry.text.toLowerCase().includes(q);
+    div.style.display = match ? '' : 'none';
+
     div.innerHTML = `
       <span class="ts-time">${entry.timestamp}</span>
-      <span class="ts-text">${escHtml(entry.text)}</span>
-      <span class="ts-lang">${entry.language || ''}</span>
-    `;
+      <span class="ts-text">${match && q ? highlightText(entry.text, searchQuery) : escHtml(entry.text)}</span>
+      <span class="ts-lang">${entry.language || ''}</span>`;
     body.appendChild(div);
 
-    // 自動捲動到底部
-    body.scrollTop = body.scrollHeight;
+    if (!searchQuery) body.scrollTop = body.scrollHeight;
 
     transcriptCount++;
-    document.getElementById('transcript-count').textContent = `${transcriptCount} 條`;
+    updateTranscriptBadge();
+  }
+
+  function updateTranscriptBadge(matchCount) {
+    const badge = document.getElementById('transcript-count');
+    if (searchQuery && matchCount !== undefined) {
+      badge.textContent = `${matchCount}/${transcriptCount} 條`;
+      badge.className   = 'badge search-active';
+    } else {
+      badge.textContent = `${transcriptCount} 條`;
+      badge.className   = 'badge';
+    }
   }
 
   function clearTranscript() {
-    const body = document.getElementById('transcript-body');
-    body.innerHTML = '<div class="empty-hint" id="transcript-empty">已清除</div>';
+    document.getElementById('transcript-body').innerHTML =
+      '<div class="empty-hint" id="transcript-empty">已清除畫面（後端 buffer 保留）</div>';
     transcriptCount = 0;
-    document.getElementById('transcript-count').textContent = '0 條';
+    updateTranscriptBadge();
   }
 
-  // ── AI 分析操作 ──────────────────────────────────
-  function updateAnalysis(data) {
-    renderList('summary-list', data.summary || [], 'list-summary');
-    renderList('questions-list', data.pending_questions || [], 'list-question');
-    renderList('actions-list', data.action_items || [], 'list-action');
-
-    if (data.timestamp) {
-      document.getElementById('analysis-ts').textContent = `最後分析：${data.timestamp}`;
-    }
-
-    if (data.error) {
-      showToast(`AI 分析錯誤：${data.error}`, 'error');
-    }
+  // ── AI 分析渲染 ──────────────────────────────────
+  function renderAnalysis(data) {
+    renderList('summary-list',   data.summary            || [], 'list-summary');
+    renderList('questions-list', data.pending_questions  || [], 'list-question');
+    renderList('actions-list',   data.action_items       || [], 'list-action');
+    document.getElementById('analysis-ts').textContent =
+      data.timestamp ? `最後分析：${data.timestamp}` : '';
+    if (data.error) showToast(`AI 分析錯誤：${data.error}`, 'error');
   }
 
-  function renderList(listId, items, cssClass) {
-    const ul = document.getElementById(listId);
+  function renderList(id, items, cls) {
+    const ul = document.getElementById(id);
     ul.innerHTML = '';
-    if (!items || items.length === 0) {
-      ul.innerHTML = `<li class="${cssClass} empty-hint">—</li>`;
+    if (!items.length) {
+      ul.innerHTML = `<li class="${cls} empty-hint">—</li>`;
       return;
     }
     items.forEach(item => {
       const li = document.createElement('li');
-      li.className = cssClass;
+      li.className = cls;
       li.innerHTML = `<span>${escHtml(item)}</span>`;
       ul.appendChild(li);
     });
   }
 
   function setAnalyzing(on) {
-    const ind = document.getElementById('analyzing-indicator');
-    if (on) {
-      ind.classList.add('visible');
-    } else {
-      ind.classList.remove('visible');
-    }
-    document.getElementById('btn-analyze').disabled = on;
+    document.getElementById('analyzing-indicator').classList.toggle('visible', on);
+    document.getElementById('btn-analyze').disabled    = on;
     document.getElementById('btn-analyze').textContent = on ? '分析中...' : '⚡ 立即分析';
   }
 
-  // ── 按鈕事件 ─────────────────────────────────────
+  // ── 按鈕動作 ────────────────────────────────────
   function triggerAnalyze() {
     setAnalyzing(true);
     fetch('/api/analyze', { method: 'POST' })
       .then(r => r.json())
       .then(d => showToast(d.message, 'info'))
-      .catch(e => {
-        setAnalyzing(false);
-        showToast(`錯誤：${e.message}`, 'error');
-      });
+      .catch(e => { setAnalyzing(false); showToast(`錯誤：${e.message}`, 'error'); });
   }
 
   function exportMinutes() {
@@ -579,7 +547,6 @@
     btn.textContent = '匯出中...';
     showToast('正在產生會議紀錄，請稍候...', 'info');
     fetch('/export', { method: 'POST' })
-      .then(r => r.json())
       .catch(e => {
         btn.disabled = false;
         btn.textContent = '📄 匯出會議紀錄';
@@ -587,58 +554,51 @@
       });
   }
 
-  // ── 狀態列 ───────────────────────────────────────
+  // ── 狀態列 ──────────────────────────────────────
   function updateStatusBar() {
-    const dot = document.getElementById('status-dot');
+    const dot  = document.getElementById('status-dot');
     const text = document.getElementById('status-text');
-    const dur = document.getElementById('duration-text');
-
-    if (isRecording) {
+    const dur  = document.getElementById('duration-text');
+    if (isRecording && isPaused) {
+      dot.className = 'status-dot paused';
+      text.textContent = '已暫停';
+    } else if (isRecording) {
       dot.className = 'status-dot recording';
       text.textContent = '錄音中';
     } else {
       dot.className = 'status-dot';
       text.textContent = '待機中';
     }
-
-    if (durationSeconds > 0) {
-      dur.textContent = `已錄音 ${formatDuration(durationSeconds)}`;
-    } else {
-      dur.textContent = '';
-    }
+    dur.textContent = durationSeconds > 0 ? `已錄音 ${fmtDur(durationSeconds)}` : '';
   }
 
-  function formatDuration(secs) {
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
-    return `${pad(m)}:${pad(s)}`;
+  function fmtDur(s) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
   }
-
   function pad(n) { return String(n).padStart(2, '0'); }
 
-  // ── Toast 通知 ────────────────────────────────────
-  function showToast(msg, type = 'info', duration = 4000) {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = msg;
-    container.appendChild(toast);
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transition = 'opacity 0.3s';
-      setTimeout(() => toast.remove(), 300);
-    }, duration);
+  // ── 連線徽章 ────────────────────────────────────
+  function setBadgeConn(ok) {
+    const b = document.getElementById('conn-badge');
+    b.textContent = ok ? '● 已連線' : '● 未連線';
+    b.className   = 'conn-badge ' + (ok ? 'connected' : 'disconnected');
   }
 
-  // ── 工具函式 ──────────────────────────────────────
-  function escHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+  // ── Toast ────────────────────────────────────────
+  function showToast(msg, type = 'info', ms = 4000) {
+    const t = document.createElement('div');
+    t.className   = `toast ${type}`;
+    t.textContent = msg;
+    document.getElementById('toast-container').appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s';
+      setTimeout(() => t.remove(), 300); }, ms);
+  }
+
+  // ── XSS 防護 ────────────────────────────────────
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 </script>
 </body>

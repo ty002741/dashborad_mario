@@ -28,8 +28,8 @@ ANALYZE_INTERVAL = int(os.getenv("ANALYZE_INTERVAL", "60"))
 FLASK_HOST = os.getenv("FLASK_HOST", "127.0.0.1")
 FLASK_PORT = int(os.getenv("FLASK_PORT", "5000"))
 
-# 最新 AI 分析結果（供新連線的客戶端立即取得）
-_latest_analysis: dict = {}
+# AI 分析歷史（保留所有分析結果供客戶端切換查看）
+_analysis_history: list[dict] = []
 _analysis_lock = threading.Lock()
 
 
@@ -48,11 +48,8 @@ def _analysis_loop():
 
 
 def _trigger_analysis():
-    """立即執行 AI 分析並推送結果。"""
-    global _latest_analysis
-
+    """立即執行 AI 分析並推送結果，同時加入歷史紀錄。"""
     with audio_capture._buffer_lock:
-        # 取得目前所有逐字稿（分析最近 30 條以避免 token 過長）
         entries = list(audio_capture.transcript_buffer[-30:])
 
     if not entries:
@@ -63,7 +60,7 @@ def _trigger_analysis():
     result = ai_analyzer.analyze_transcript(entries)
 
     with _analysis_lock:
-        _latest_analysis = result
+        _analysis_history.append(result)
 
     socketio.emit("ai_analysis", result)
     print(f"[AI 分析] 完成，時間：{result.get('timestamp')}")
@@ -91,9 +88,25 @@ def api_status():
 
 @app.route("/api/analysis")
 def api_analysis():
-    """回傳最新 AI 分析結果。"""
+    """回傳所有 AI 分析歷史。"""
     with _analysis_lock:
-        return jsonify(_latest_analysis)
+        return jsonify(_analysis_history)
+
+
+@app.route("/api/pause", methods=["POST"])
+def api_pause():
+    """暫停錄音。"""
+    audio_capture.pause_capture()
+    socketio.emit("status_update", _build_status())
+    return jsonify({"message": "已暫停錄音"})
+
+
+@app.route("/api/resume", methods=["POST"])
+def api_resume():
+    """繼續錄音。"""
+    audio_capture.resume_capture()
+    socketio.emit("status_update", _build_status())
+    return jsonify({"message": "已繼續錄音"})
 
 
 @app.route("/export", methods=["POST"])
@@ -123,10 +136,19 @@ def manual_analyze():
     return jsonify({"message": "AI 分析已觸發"})
 
 
+# ── 狀態輔助函式 ──────────────────────────────────────
+def _build_status() -> dict:
+    return {
+        "is_recording": audio_capture.is_recording(),
+        "is_paused": audio_capture.is_paused(),
+        "duration_seconds": audio_capture.get_recording_duration(),
+    }
+
+
 # ── SocketIO 事件 ─────────────────────────────────────
 @socketio.on("connect")
 def handle_connect():
-    """客戶端連線時，推送目前狀態與最新分析。"""
+    """客戶端連線時，推送目前狀態與完整分析歷史。"""
     print(f"[SocketIO] 客戶端連線")
 
     # 推送目前所有逐字稿
@@ -134,16 +156,12 @@ def handle_connect():
         for entry in audio_capture.transcript_buffer:
             emit("new_transcript", entry)
 
-    # 推送最新 AI 分析
+    # 推送所有 AI 分析歷史（讓前端重建 tab 列表）
     with _analysis_lock:
-        if _latest_analysis:
-            emit("ai_analysis", _latest_analysis)
+        for analysis in _analysis_history:
+            emit("ai_analysis", analysis)
 
-    # 推送錄音狀態
-    emit("status_update", {
-        "is_recording": audio_capture.is_recording(),
-        "duration_seconds": audio_capture.get_recording_duration(),
-    })
+    emit("status_update", _build_status())
 
 
 @socketio.on("disconnect")
@@ -174,10 +192,7 @@ def main():
     def _status_loop():
         while True:
             time.sleep(1)
-            socketio.emit("status_update", {
-                "is_recording": audio_capture.is_recording(),
-                "duration_seconds": audio_capture.get_recording_duration(),
-            })
+            socketio.emit("status_update", _build_status())
 
     threading.Thread(target=_status_loop, daemon=True).start()
 
