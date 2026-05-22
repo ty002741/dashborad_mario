@@ -1,0 +1,28 @@
+# Windows 本地會議 AI 助理 - 依賴套件
+# Python 3.11 相容版本
+
+# 音訊截取
+sounddevice==0.4.6
+numpy==1.26.4
+
+# 語音轉文字（faster-whisper 使用 CTranslate2 加速）
+faster-whisper==1.0.3
+
+# AI 分析
+anthropic==0.40.0
+
+# 後端框架
+flask==3.0.3
+flask-socketio==5.3.6
+python-engineio==4.9.1
+python-socketio==5.11.3
+eventlet==0.36.1
+
+# 環境變數管理
+python-dotenv==1.0.1
+
+# 音訊處理
+scipy==1.13.1
+
+# 工具
+requests==2.32.3
