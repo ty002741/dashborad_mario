@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { fetchActivities } from '@/lib/intervals'
 import { getActivityLabel } from '@/lib/transforms'
 import CalendarClient from '@/components/dashboard/CalendarClient'

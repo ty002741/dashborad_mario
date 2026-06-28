@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { fetchActivities } from '@/lib/intervals'
 import { getActivityLabel, secondsToPace } from '@/lib/transforms'
 import ActivitiesClient from '@/components/dashboard/ActivitiesClient'
