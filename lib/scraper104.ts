@@ -31,9 +31,11 @@ export interface ScraperOptions {
   area?: string;
   jobcat?: string;
   page?: number;
-  listedOnly?: boolean; // 上市上櫃
+  listedOnly?: boolean;
 }
 
+// Client-side fetch — called directly from the browser so requests come from
+// the user's real IP, bypassing cloud server IP blocks on 104.com.tw.
 export async function scrape104Jobs(options: ScraperOptions = {}): Promise<{
   jobs: Job104[];
   totalCount: number;
@@ -53,7 +55,7 @@ export async function scrape104Jobs(options: ScraperOptions = {}): Promise<{
     keyword,
     order: "14",
     asc: "0",
-    s5: listedOnly ? "1" : "0", // 1 = 上市上櫃 only
+    s5: listedOnly ? "1" : "0",
     mode: "s",
     jobsource: "2018indexpoc",
     page: String(page),
@@ -67,16 +69,13 @@ export async function scrape104Jobs(options: ScraperOptions = {}): Promise<{
   const res = await fetch(url, {
     headers: {
       Referer: "https://www.104.com.tw/",
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       Accept: "application/json, text/plain, */*",
       "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
     },
-    next: { revalidate: 0 },
   });
 
   if (!res.ok) {
-    throw new Error(`104 API error: ${res.status} ${res.statusText}`);
+    throw new Error(`104 API 錯誤：${res.status} ${res.statusText}`);
   }
 
   const json: Raw104Response = await res.json();
