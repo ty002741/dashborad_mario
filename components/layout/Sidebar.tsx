@@ -1,11 +1,12 @@
 'use client'
 import Link from 'next/link'
-import { Activity, BarChart2, Calendar, Settings, X, Zap } from 'lucide-react'
+import { Activity, BarChart2, Calendar, Search, Settings, X, Zap } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard', icon: BarChart2, label: '訓練總覽' },
   { href: '/dashboard/activities', icon: Activity, label: '活動紀錄' },
   { href: '/dashboard/calendar', icon: Calendar, label: '訓練日曆' },
+  { href: '/job-scraper', icon: Search, label: '104 職缺爬蟲' },
 ]
 
 interface SidebarProps {
